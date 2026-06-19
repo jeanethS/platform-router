@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-router
+  labels:
+    app: platform-router
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: platform-router
+  template:
+    metadata:
+      labels:
+        app: platform-router
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      containers:
+        - name: router
+          image: ghcr.io/yourorg/platform-router:1.0.0
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: KAFKA_BROKERS
+              value: "kafka-broker:9092"
+            - name: KAFKA_CLIENT_ID
+              value: "platform-router"
+            - name: HTTP_PORT
+              value: "8080"
+            - name: METRICS_PORT
+              value: "9090"
+          volumeMounts:
+            - name: config
+              mountPath: /app/src/rules
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: config
+          configMap:
+            name: platform-router-config

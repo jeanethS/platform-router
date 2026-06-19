@@ -1,0 +1,27 @@
+default:
+  instagram: carousel
+  linkedin: carousel
+  youtube: long_video
+  x: thread
+  tiktok: short_video
+  douyin: short_video
+  rednote: note
+
+tech_science:
+  instagram: carousel
+  linkedin: carousel
+  youtube: long_video
+  x: thread
+  tiktok: short_video
+  douyin: short_video
+
+culture_aesthetics:
+  instagram: carousel
+  tiktok: short_video
+  douyin: short_video
+  rednote: note
+
+biz_startups:
+  linkedin: carousel
+  youtube: long_video
+  x: thread

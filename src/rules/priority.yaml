@@ -1,0 +1,7 @@
+weights:
+  likes: 0.2
+  shares: 0.3
+  comments: 0.25
+  views: 0.15
+  watch_time_seconds: 0.1
+max_score: 100

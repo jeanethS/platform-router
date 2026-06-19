@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Test coverage & cache
+coverage/
+.jest-cache/
+.cache/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Env files (keep .env.example tracked)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Runtime / local data
+.tmp/
+tmp/
+*.pid
+*.seed
+*.pid.lock
+
+# Docker local volumes (compose overrides kept if intentional)
+docker-data/
+
+# Kafka / Prometheus local data (dev-only)
+kafka-data/
+prometheus-data/
+
+# OpenTelemetry local exports
+otel-exports/
+
+# Hermes agent local state (if any checked in here)
+.hermes/

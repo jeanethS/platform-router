@@ -1,0 +1,21 @@
+{
+  "project": "platform-router",
+  "version": "1.0.0",
+  "milestones": [
+    {"id": "T-001", "title": "Project scaffolding", "status": "complete"},
+    {"id": "T-002", "title": "Contract definitions", "status": "complete"},
+    {"id": "T-003", "title": "Kafka connector", "status": "complete"},
+    {"id": "T-004", "title": "ConfigService (YAML loader)", "status": "complete"},
+    {"id": "T-005", "title": "PriorityScorer", "status": "complete"},
+    {"id": "T-006", "title": "Router core logic", "status": "complete"},
+    {"id": "T-007", "title": "HTTP server", "status": "complete"},
+    {"id": "T-008", "title": "OpenTelemetry tracing", "status": "complete"},
+    {"id": "T-009", "title": "Dockerfile and Helm chart", "status": "complete"},
+    {"id": "T-010", "title": "Integration tests", "status": "complete"},
+    {"id": "T-011", "title": "Load tests", "status": "complete"},
+    {"id": "T-012", "title": "Error handling and dead-letter", "status": "complete"},
+    {"id": "T-013", "title": "Security hardening", "status": "complete"},
+    {"id": "T-014", "title": "Documentation", "status": "complete"},
+    {"id": "T-015", "title": "Release and rollout", "status": "complete"}
+  ]
+}

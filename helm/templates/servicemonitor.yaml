@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ServiceMonitor
+metadata:
+  name: platform-router
+  labels:
+    app: platform-router
+spec:
+  selector:
+    matchLabels:
+      app: platform-router
+  endpoints:
+    - port: metrics
+      interval: 15s

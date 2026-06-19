@@ -1,0 +1,44 @@
+tech_science:
+  instagram: true
+  linkedin: true
+  youtube: true
+  x: true
+  tiktok: true
+  douyin: false
+  rednote: false
+
+robotics_maker:
+  instagram: true
+  linkedin: true
+  youtube: true
+  x: true
+  tiktok: true
+  douyin: true
+  rednote: false
+
+culture_aesthetics:
+  instagram: true
+  linkedin: false
+  youtube: false
+  x: false
+  tiktok: true
+  douyin: true
+  rednote: true
+
+biz_startups:
+  instagram: false
+  linkedin: true
+  youtube: true
+  x: true
+  tiktok: false
+  douyin: false
+  rednote: false
+
+cn_market:
+  instagram: false
+  linkedin: false
+  youtube: true
+  x: false
+  tiktok: true
+  douyin: true
+  rednote: true

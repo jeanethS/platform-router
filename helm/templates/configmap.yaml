@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-router-config
+data:
+  routing.yaml: |
+    tech_science:
+      instagram: true
+      linkedin: true
+      youtube: true
+      x: true
+      tiktok: true
+      douyin: false
+      rednote: false
+    robotics_maker:
+      instagram: true
+      linkedin: true
+      youtube: true
+      x: true
+      tiktok: true
+      douyin: true
+      rednote: false
+    culture_aesthetics:
+      instagram: true
+      linkedin: false
+      youtube: false
+      x: false
+      tiktok: true
+      douyin: true
+      rednote: true
+    biz_startups:
+      instagram: false
+      linkedin: true
+      youtube: true
+      x: true
+      tiktok: false
+      douyin: false
+      rednote: false
+    cn_market:
+      instagram: false
+      linkedin: false
+      youtube: true
+      x: false
+      tiktok: true
+      douyin: true
+      rednote: true
+  formats.yaml: |
+    default:
+      instagram: carousel
+      linkedin: carousel
+      youtube: long_video
+      x: thread
+      tiktok: short_video
+      douyin: short_video
+      rednote: note
+    tech_science:
+      instagram: carousel
+      linkedin: carousel
+      youtube: long_video
+      x: thread
+      tiktok: short_video
+      douyin: short_video
+    culture_aesthetics:
+      instagram: carousel
+      tiktok: short_video
+      douyin: short_video
+      rednote: note
+    biz_startups:
+      linkedin: carousel
+      youtube: long_video
+      x: thread
+  priority.yaml: |
+    weights:
+      likes: 0.2
+      shares: 0.3
+      comments: 0.25
+      views: 0.15
+      watch_time_seconds: 0.1
+    max_score: 100
