@@ -2,6 +2,51 @@ jest.mock('../src/config', () => ({
   ConfigService: {
     instance: {
       getRoutingRules: () => ({
+        tech_science: {
+          instagram: true,
+          linkedin: true,
+          youtube: true,
+          x: true,
+          tiktok: true,
+          douyin: false,
+          rednote: false,
+          whatsapp: false,
+          whatsapp_status: false,
+        },
+        robotics_maker: {
+          instagram: true,
+          linkedin: true,
+          youtube: true,
+          x: true,
+          tiktok: true,
+          douyin: true,
+          rednote: false,
+          whatsapp: false,
+          whatsapp_status: false,
+        },
+        culture_aesthetics: {
+          instagram: true,
+          linkedin: false,
+          youtube: false,
+          x: false,
+          tiktok: true,
+          douyin: true,
+          rednote: true,
+          whatsapp: true,
+          whatsapp_status: false,
+        },
+        local_services: {
+          instagram: true,
+          linkedin: false,
+          youtube: true,
+          x: false,
+          tiktok: true,
+          douyin: false,
+          rednote: false,
+          whatsapp: true,
+          whatsapp_status: true,
+        },
+        unknown_category: undefined as unknown as Record<string, boolean>,
         tech: { instagram: true, linkedin: true, youtube: true, x: true, tiktok: true, douyin: false, rednote: false },
         cn: { instagram: false, linkedin: false, youtube: true, x: false, tiktok: true, douyin: true, rednote: true },
       }),
@@ -117,5 +162,45 @@ describe('Router', () => {
     for (const job of jobs) {
       expect(job.content_format).toBeUndefined();
     }
+  });
+
+  it("routes to whatsapp for culture_aesthetics cluster", async () => {
+    const report = baseReport({ category_tags: ["culture_aesthetics"] });
+    const jobs = await router.route(report);
+    const platforms = jobs.map((j) => j.target_platform);
+    expect(platforms).toContain("whatsapp");
+    expect(platforms).not.toContain("whatsapp_status");
+  });
+
+  it("routes to whatsapp + whatsapp_status for local_services cluster", async () => {
+    const report = baseReport({ category_tags: ["local_services"] });
+    const jobs = await router.route(report);
+    const platforms = jobs.map((j) => j.target_platform);
+    expect(platforms).toContain("whatsapp");
+    expect(platforms).toContain("whatsapp_status");
+  });
+
+  it("does NOT route to whatsapp for tech_science (B2B cluster)", async () => {
+    const report = baseReport({ category_tags: ["tech_science"] });
+    const jobs = await router.route(report);
+    const platforms = jobs.map((j) => j.target_platform);
+    expect(platforms).not.toContain("whatsapp");
+    expect(platforms).not.toContain("whatsapp_status");
+  });
+
+  it("uses audio_note format for whatsapp by default", async () => {
+    const report = baseReport({ category_tags: ["culture_aesthetics"] });
+    const jobs = await router.route(report);
+    const whatsappJob = jobs.find((j) => j.target_platform === "whatsapp");
+    expect(whatsappJob!.content_format).toBe("audio_note");
+  });
+
+  it("uses broadcast format override for local_services whatsapp", async () => {
+    const report = baseReport({ category_tags: ["local_services"] });
+    const jobs = await router.route(report);
+    const whatsappJob = jobs.find((j) => j.target_platform === "whatsapp");
+    expect(whatsappJob!.content_format).toBe("broadcast");
+    const statusJob = jobs.find((j) => j.target_platform === "whatsapp_status");
+    expect(statusJob!.content_format).toBe("voice_memo");
   });
 });

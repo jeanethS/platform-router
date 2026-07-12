@@ -6,6 +6,8 @@ tech:
   tiktok: true
   douyin: false
   rednote: false
+  whatsapp: false
+  whatsapp_status: false
 
 robotics:
   instagram: true
@@ -15,6 +17,8 @@ robotics:
   tiktok: true
   douyin: true
   rednote: false
+  whatsapp: false
+  whatsapp_status: false
 
 culture:
   instagram: true
@@ -24,6 +28,8 @@ culture:
   tiktok: true
   douyin: true
   rednote: true
+  whatsapp: true
+  whatsapp_status: false
 
 biz:
   instagram: false
@@ -33,6 +39,8 @@ biz:
   tiktok: false
   douyin: false
   rednote: false
+  whatsapp: false
+  whatsapp_status: false
 
 cn:
   instagram: false
@@ -42,6 +50,19 @@ cn:
   tiktok: true
   douyin: true
   rednote: true
+  whatsapp: false
+  whatsapp_status: false
+
+local_services:
+  instagram: true
+  linkedin: false
+  youtube: true
+  x: false
+  tiktok: true
+  douyin: false
+  rednote: false
+  whatsapp: true
+  whatsapp_status: true
 
 meta:
   instagram: false

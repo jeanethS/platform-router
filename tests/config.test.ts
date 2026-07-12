@@ -23,6 +23,23 @@ describe("ConfigService", () => {
     expect(tech!["douyin"]).toBe(false);
   });
 
+  it("routing.yaml declares whatsapp flag for every cluster", () => {
+    const svc = new ConfigService(rulesDir);
+    const rules = svc.getRoutingRules();
+    for (const cluster of Object.keys(rules)) {
+      const rule = rules[cluster]!;
+      expect(rule["whatsapp"]).toBeDefined();
+    }
+  });
+
+  it("routing.yaml has local_services cluster with whatsapp enabled", () => {
+    const svc = new ConfigService(rulesDir);
+    const rules = svc.getRoutingRules();
+    const local = rules["local_services"];
+    expect(local).toBeDefined();
+    expect(local!["whatsapp"]).toBe(true);
+  });
+
   it("getFormatRules() returns parsed formats map with default key", () => {
     const svc = new ConfigService(rulesDir);
     const formats = svc.getFormatRules();
