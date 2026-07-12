@@ -1,5 +1,7 @@
 # GCP Architecture & Implementation Specs — platform-router
 
+> ⚠️ **DESACTUALIZADO (2026-07-12): este documento describe la arquitectura Kafka ANTERIOR a la migración a BullMQ.** El servicio ya NO usa Kafka/kafkajs — consume `clusters.reports` y produce `jobs.routed` vía BullMQ sobre Redis (`REDIS_URL`, default `redis://localhost:6379`). `src/kafka.ts` ya no existe (ver `src/bus.ts` y `AGENTS.md`). Las secciones de aprovisionamiento que digan "No provisionar Redis" o referencien `KAFKA_BROKERS` son la INVERSA de la realidad actual — Redis ahora es requerido. Pendiente de re-auditoría con la arquitectura BullMQ.
+
 > Auditado contra `src/index.ts`, `src/kafka.ts`, reglas YAML, Dockerfile y Helm el 2026-07-12. Proyecto `positronica-labs`; región `us-central1`.
 
 ## 1. Resumen de uso de créditos
