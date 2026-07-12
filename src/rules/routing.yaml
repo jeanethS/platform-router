@@ -6,6 +6,8 @@ tech_science:
   tiktok: true
   douyin: false
   rednote: false
+  whatsapp: false
+  whatsapp_status: false
 
 robotics_maker:
   instagram: true
@@ -15,6 +17,8 @@ robotics_maker:
   tiktok: true
   douyin: true
   rednote: false
+  whatsapp: false
+  whatsapp_status: false
 
 culture_aesthetics:
   instagram: true
@@ -24,6 +28,8 @@ culture_aesthetics:
   tiktok: true
   douyin: true
   rednote: true
+  whatsapp: true
+  whatsapp_status: false
 
 biz_startups:
   instagram: false
@@ -33,6 +39,8 @@ biz_startups:
   tiktok: false
   douyin: false
   rednote: false
+  whatsapp: false
+  whatsapp_status: false
 
 cn_market:
   instagram: false
@@ -42,3 +50,16 @@ cn_market:
   tiktok: true
   douyin: true
   rednote: true
+  whatsapp: false
+  whatsapp_status: false
+
+local_services:
+  instagram: true
+  linkedin: false
+  youtube: true
+  x: false
+  tiktok: true
+  douyin: false
+  rednote: false
+  whatsapp: true
+  whatsapp_status: true

@@ -6,6 +6,8 @@ default:
   tiktok: short_video
   douyin: short_video
   rednote: note
+  whatsapp: audio_note
+  whatsapp_status: short_video
 
 tech_science:
   instagram: carousel
@@ -25,3 +27,7 @@ biz_startups:
   linkedin: carousel
   youtube: long_video
   x: thread
+
+local_services:
+  whatsapp: broadcast
+  whatsapp_status: voice_memo

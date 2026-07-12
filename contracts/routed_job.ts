@@ -5,9 +5,19 @@ export type Platform =
   | "x"
   | "tiktok"
   | "douyin"
-  | "rednote";
+  | "rednote"
+  | "whatsapp"
+  | "whatsapp_status";
 
-export type ContentFormat = "carousel" | "short_video" | "long_video" | "thread" | "note";
+export type ContentFormat =
+  | "carousel"
+  | "short_video"
+  | "long_video"
+  | "thread"
+  | "note"
+  | "audio_note"
+  | "broadcast"
+  | "voice_memo";
 
 export interface RoutedJob {
   id: string;

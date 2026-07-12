@@ -11,6 +11,8 @@ const PLATFORMS: Platform[] = [
   "tiktok",
   "douyin",
   "rednote",
+  "whatsapp",
+  "whatsapp_status",
 ];
 
 export class Router {
