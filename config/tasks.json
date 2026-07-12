@@ -16,6 +16,8 @@
     {"id": "T-012", "title": "Error handling and dead-letter", "status": "complete"},
     {"id": "T-013", "title": "Security hardening", "status": "complete"},
     {"id": "T-014", "title": "Documentation", "status": "complete"},
-    {"id": "T-015", "title": "Release and rollout", "status": "complete"}
+    {"id": "T-015", "title": "Release and rollout", "status": "complete"},
+    {"id": "T-016", "title": "Migrate Kafka connector to BullMQ", "status": "complete"},
+    {"id": "T-017", "title": "Fix Jest open handles from ConfigService fs.watch", "status": "complete"}
   ]
 }

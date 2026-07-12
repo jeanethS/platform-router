@@ -1,42 +1,34 @@
 # progress_notes.txt
-# Session: 2026-06-07 | Final
-# Model: owl-alpha (OpenRouter)
+# Session: 2026-07-12
 
-## Session init: read tasks.json + progress_notes.txt ✓
+## Session init
+- Read tasks.json + progress_notes.txt.
+- Reviewed BullMQ migration diff d3408a9..3e4c138.
+- Verified test suite: 51 passed, 8 suites, tsc clean.
 
 ## What was done this session
-- T-013 Security hardening:
-  - npm audit: 5 high vulns in fast-uri (transitive via fastify@4)
-  - npm audit fix --force → upgraded fastify to 5.8.5, 0 vulns
-  - Build + tests still pass after upgrade
-  - Created SECURITY.md
-  - Created .dockerignore
-- T-010 Integration tests:
-  - Created tests/integration.test.ts
-  - Tests Kafka consume → route → produce end-to-end
-  - Gracefully skips if Kafka not reachable (connection timeout 5s)
-- T-011 Load tests:
-  - Created tests/load/k6-http.js
-  - k6 script: ramp 100→1000→0 RPS over 2min
-  - Thresholds: p95 < 10ms, error rate < 5%
-- T-015 Release plan:
-  - Created docs/releases/v1.0.0.md
-  - Tag → build → canary (1 replica) → validate → full rollout (3 replicas)
-  - Rollback procedure documented
-- All 15 milestones now complete
+- Updated tasks.json:
+  - Added T-016 "Migrate Kafka connector to BullMQ" -> complete.
+  - Added T-017 "Fix Jest open handles from ConfigService fs.watch" -> complete.
+- Fixed open handles (T-017):
+  - Root cause: ConfigService._watch() created fs.watch FSWatchers that were never closed in tests.
+  - Added _watchers: fs.FSWatcher[] to ConfigService.
+  - Added ConfigService.close() to close all watchers and clear listeners.
+  - Wired fs.watch() return values into _watchers.
+  - Added tests/config.test.ts afterEach hook to close ConfigService.instance.
+  - Updated tests/integration.test.ts to close its ConfigService in afterAll.
+  - Added new test "close() stops file watchers from firing callbacks" (TDD red -> green).
 
 ## Final state
-- 46 unit tests pass, 0 failures
-- 1 integration test (skips without Kafka)
-- Build: tsc --noEmit clean
-- Coverage: 83% lines, 82% statements (core modules 100%)
-- 0 npm audit vulnerabilities
-- All source files: config, priority, router, kafka, metrics, server, tracer, index
-- All test files: config, priority, router, kafka, metrics, server, tracer
-- Config: routing.yaml, formats.yaml, priority.yaml
-- Deploy: Dockerfile, Helm chart (deployment, service, configmap, servicemonitor)
-- Docs: README.md, SECURITY.md, AGENTS.md, release plan
+- 52/52 tests passing, 8 suites.
+- tsc --noEmit clean.
+- `npx jest --runInBand --detectOpenHandles` reports zero open handles.
+- Console noise remains: expected console.warn from config hot-reload invalidation tests and priority neutral fallback tests.
+- Linter: `npm run lint` fails due to missing `typescript-eslint` package in eslint.config.js; pre-existing environment issue, not project code.
 
-## Linter errors
-- None in our code
-- Pre-existing: pino type in node_modules/fastify (not our code)
+## Files changed this session
+- config/tasks.json
+- config/progress_notes.txt
+- src/config.ts
+- tests/config.test.ts
+- tests/integration.test.ts

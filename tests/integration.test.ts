@@ -4,8 +4,14 @@ import { Router } from '../src/router';
 import type { ClusterReport } from '@brand-os/contracts';
 
 describe('integration: real rules -> router -> priority', () => {
+  let configService: ConfigService;
+
   beforeAll(() => {
-    new ConfigService(path.resolve(__dirname, '../src/rules'));
+    configService = new ConfigService(path.resolve(__dirname, '../src/rules'));
+  });
+
+  afterAll(() => {
+    configService.close();
   });
 
   function makeReport(overrides: Partial<ClusterReport>): ClusterReport {

@@ -20,6 +20,7 @@ export class ConfigService {
   private _priority: z.infer<typeof prioritySchema> = { weights: {}, max_score: 100 };
   private _configDir: string;
   private _listeners: Array<() => void> = [];
+  private _watchers: Array<fs.FSWatcher> = [];
 
   constructor(configDir: string = defaultConfigDir) {
     this._configDir = configDir;
@@ -42,6 +43,14 @@ export class ConfigService {
 
   onChange(callback: () => void): void {
     this._listeners.push(callback);
+  }
+
+  close(): void {
+    for (const watcher of this._watchers) {
+      watcher.close();
+    }
+    this._watchers = [];
+    this._listeners = [];
   }
 
   private _loadAll(): void {
@@ -68,7 +77,7 @@ export class ConfigService {
     const files = ["routing.yaml", "formats.yaml", "priority.yaml"];
     for (const file of files) {
       const filepath = path.join(this._configDir, file);
-      fs.watch(filepath, () => {
+      this._watchers.push(fs.watch(filepath, () => {
         try {
           this._loadAll();
           for (const listener of this._listeners) {
@@ -77,7 +86,7 @@ export class ConfigService {
         } catch (err) {
           console.warn(`[ConfigService] Hot-reload failed for ${file}: ${err}`);
         }
-      });
+      }));
     }
   }
 }

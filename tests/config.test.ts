@@ -5,6 +5,10 @@ import { ConfigService } from "../src/config";
 const rulesDir = path.resolve(__dirname, "..", "src", "rules");
 
 describe("ConfigService", () => {
+  afterEach(() => {
+    ConfigService.instance?.close();
+  });
+
   it("loads valid YAML files on construction", () => {
     const svc = new ConfigService(rulesDir);
     expect(svc).toBeDefined();
@@ -35,6 +39,23 @@ describe("ConfigService", () => {
     expect(priority.weights["likes"]).toBe(0.2);
     expect(priority.weights["shares"]).toBe(0.3);
   });
+
+  it("close() stops file watchers from firing callbacks", (done) => {
+    const svc = new ConfigService(rulesDir);
+    let called = false;
+    svc.onChange(() => {
+      called = true;
+    });
+    svc.close();
+    const filepath = path.join(rulesDir, "routing.yaml");
+    const original = fs.readFileSync(filepath, "utf-8");
+    fs.writeFileSync(filepath, original);
+    setTimeout(() => {
+      expect(called).toBe(false);
+      fs.writeFileSync(filepath, original);
+      done();
+    }, 300);
+  }, 5000);
 
   it("onChange callback fires when routing.yaml changes", (done) => {
     const svc = new ConfigService(rulesDir);
