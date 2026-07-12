@@ -7,7 +7,7 @@ default:
   douyin: short_video
   rednote: note
 
-tech_science:
+tech:
   instagram: carousel
   linkedin: carousel
   youtube: long_video
@@ -15,13 +15,13 @@ tech_science:
   tiktok: short_video
   douyin: short_video
 
-culture_aesthetics:
+culture:
   instagram: carousel
   tiktok: short_video
   douyin: short_video
   rednote: note
 
-biz_startups:
+biz:
   linkedin: carousel
   youtube: long_video
   x: thread

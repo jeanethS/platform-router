@@ -1,4 +1,4 @@
-tech_science:
+tech:
   instagram: true
   linkedin: true
   youtube: true
@@ -7,7 +7,7 @@ tech_science:
   douyin: false
   rednote: false
 
-robotics_maker:
+robotics:
   instagram: true
   linkedin: true
   youtube: true
@@ -16,7 +16,7 @@ robotics_maker:
   douyin: true
   rednote: false
 
-culture_aesthetics:
+culture:
   instagram: true
   linkedin: false
   youtube: false
@@ -25,7 +25,7 @@ culture_aesthetics:
   douyin: true
   rednote: true
 
-biz_startups:
+biz:
   instagram: false
   linkedin: true
   youtube: true
@@ -34,7 +34,7 @@ biz_startups:
   douyin: false
   rednote: false
 
-cn_market:
+cn:
   instagram: false
   linkedin: false
   youtube: true
@@ -42,3 +42,12 @@ cn_market:
   tiktok: true
   douyin: true
   rednote: true
+
+meta:
+  instagram: false
+  linkedin: true
+  youtube: false
+  x: true
+  tiktok: false
+  douyin: false
+  rednote: false

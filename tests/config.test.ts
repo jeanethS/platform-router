@@ -13,10 +13,10 @@ describe("ConfigService", () => {
   it("getRoutingRules() returns parsed routing map", () => {
     const svc = new ConfigService(rulesDir);
     const rules = svc.getRoutingRules();
-    const techScience = rules["tech_science"];
-    expect(techScience).toBeDefined();
-    expect(techScience!["instagram"]).toBe(true);
-    expect(techScience!["douyin"]).toBe(false);
+    const tech = rules["tech"];
+    expect(tech).toBeDefined();
+    expect(tech!["instagram"]).toBe(true);
+    expect(tech!["douyin"]).toBe(false);
   });
 
   it("getFormatRules() returns parsed formats map with default key", () => {
