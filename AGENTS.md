@@ -2,30 +2,30 @@
 
 ## Project
 
-Smart content moderation & routing engine. Consumes `cluster_report` events from Kafka, evaluates against YAML routing rules, emits `routed_job` events for downstream content generators (IG, LI, YT, X, TikTok, Douyin, RedNote).
+Smart content moderation & routing engine. Consumes `cluster_report` events from BullMQ, evaluates against YAML routing rules, emits `routed_job` events for downstream content generators (IG, LI, YT, X, TikTok, Douyin, RedNote).
 
-Stack: TypeScript/Node.js, Fastify, Kafka (node-rdkafka), js-yaml, zod, Jest+ts-jest, Prometheus, OpenTelemetry.
+Stack: TypeScript/Node.js, Fastify, BullMQ, ioredis, js-yaml, zod, Jest+ts-jest, Prometheus, OpenTelemetry.
 
 ## Architecture
 
 ```
-Kafka(analysis.cluster_reports) → platform-router → Kafka(platform-router.routed_jobs)
-                                        ↑
-                              ConfigMap (YAML: routing, formats, priority)
-                                        ↑
-                              Prometheus + OpenTelemetry
+BullMQ (clusters.reports) → platform-router → BullMQ (jobs.routed)
+                                    ↑
+                          ConfigMap (YAML: routing, formats, priority)
+                                    ↑
+                          Prometheus + OpenTelemetry
+                                   (Redis transport)
 ```
 
 Core modules:
 - `src/config.ts` — ConfigService (YAML load, zod validate, fs.watch hot-reload)
 - `src/router.ts` — Router (tag normalize, platform union, format select, priority)
 - `src/priority.ts` — PriorityScorer (weighted sum → 1-10)
-- `src/kafka.ts` — KafkaConnector (consume/produce, graceful shutdown)
+- `src/bus.ts` — BullMQ worker (clusters.reports) + producer (jobs.routed), zod-validates payloads with ClusterReportSchema, UnrecoverableError on invalid payloads, failed set replaces DLQ
 - `src/server.ts` — HTTP server (/healthz, /metrics, /config)
 - `src/metrics.ts` — Prometheus counters/histograms
 - `src/tracer.ts` — OpenTelemetry spans
 - `src/index.ts` — Bootstrap (wire all, handle SIGTERM)
-- `contracts/` — TypeScript interfaces (ClusterReport, RoutedJob)
 - `src/rules/` — routing.yaml, formats.yaml, priority.yaml
 
 ## TDD — Strict Red-Green-Refactor
@@ -73,7 +73,6 @@ Before wrapping up:
 
 - `src/` — production code
 - `tests/` — test files (`*.test.ts` beside source or in `tests/`)
-- `contracts/` — type definitions only, no logic
 - `src/rules/` — YAML config files
 - All production code in `src/` must have corresponding test before commit
 
@@ -81,4 +80,4 @@ Before wrapping up:
 
 - Docker multi-stage build, non-root user, ports 8080 (HTTP) + 9090 (metrics)
 - Kubernetes Deployment (3 replicas), ConfigMap for YAML rules
-- Kafka TLS + SASL, mTLS for HTTP (optional)
+- Redis transport via `REDIS_URL` (default `redis://localhost:6379`), mTLS for HTTP (optional)
