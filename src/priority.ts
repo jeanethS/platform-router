@@ -1,15 +1,16 @@
 import { ConfigService } from './config';
+import type { ClusterEngagement } from '@brand-os/contracts';
 
-export interface EngagementMetrics {
-  likes: number;
-  shares: number;
-  comments: number;
-  views: number;
-  watch_time_seconds?: number;
-}
+/** Neutral midpoint used when a report carries no engagement data. */
+const NEUTRAL_PRIORITY = 5;
 
 export class PriorityScorer {
-  score(metrics: EngagementMetrics): number {
+  score(engagement: ClusterEngagement | undefined): number {
+    if (engagement === undefined || engagement.signal_count === 0) {
+      console.warn('[PriorityScorer] no engagement data; using neutral priority');
+      return NEUTRAL_PRIORITY;
+    }
+
     const config = ConfigService.instance!.getPriorityConfig() as {
       weights: Record<string, number>;
       max_score: number;
@@ -21,14 +22,11 @@ export class PriorityScorer {
     }
 
     const raw =
-      (metrics.likes ?? 0) * (weights['likes'] ?? 0) +
-      (metrics.shares ?? 0) * (weights['shares'] ?? 0) +
-      (metrics.comments ?? 0) * (weights['comments'] ?? 0) +
-      (metrics.views ?? 0) * (weights['views'] ?? 0) +
-      ((metrics.watch_time_seconds ?? 0) * (weights['watch_time_seconds'] ?? 0));
+      engagement.likes * (weights['likes'] ?? 0) +
+      engagement.shares * (weights['shares'] ?? 0) +
+      engagement.comments * (weights['comments'] ?? 0) +
+      engagement.views * (weights['views'] ?? 0);
 
-    const scaled = Math.min(10, Math.max(1, Math.round((raw / max_score) * 10)));
-
-    return scaled;
+    return Math.min(10, Math.max(1, Math.round((raw / max_score) * 10)));
   }
 }
