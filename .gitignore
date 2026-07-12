@@ -58,3 +58,4 @@ otel-exports/
 
 # Hermes agent local state (if any checked in here)
 .hermes/
+.superpowers/
