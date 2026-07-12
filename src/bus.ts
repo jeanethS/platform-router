@@ -22,14 +22,17 @@ export class BusConnector {
   constructor(redisUrl: string = process.env.REDIS_URL ?? DEFAULT_REDIS_URL) {
     // BullMQ requires maxRetriesPerRequest: null on shared connections
     this.connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
-    this.outQueue = new Queue(TOPICS.JOBS_ROUTED, { connection: this.connection });
+    // bullmq bundles its own ioredis; cast shared connection for type compat
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const conn = this.connection as any;
+    this.outQueue = new Queue(TOPICS.JOBS_ROUTED, { connection: conn });
   }
 
   start(): void {
     this.worker = new Worker(
       TOPICS.CLUSTERS_REPORTS,
       (job: Job) => this.process(job),
-      { connection: this.connection },
+      { connection: this.connection as any },
     );
     this.worker.on('failed', (job, err) => {
       console.error(`[bus] job failed id=${job?.id ?? 'unknown'} error=${err.message}`);

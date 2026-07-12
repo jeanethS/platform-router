@@ -1,118 +1,64 @@
-/**
- * Integration test: consume → produce via Kafka.
- *
- * Requires Docker + testcontainers. Skips gracefully if not available.
- *
- * Run: npx jest --runInBand tests/integration.test.ts --testTimeout=120000
- */
-import { Kafka, Producer, Consumer, EachMessagePayload } from "kafkajs";
-import { Router } from "../src/router";
-import { ConfigService } from "../src/config";
-import * as path from "node:path";
+import * as path from 'node:path';
+import { ConfigService } from '../src/config';
+import { Router } from '../src/router';
+import type { ClusterReport } from '@brand-os/contracts';
 
-jest.setTimeout(120000);
+describe('integration: real rules -> router -> priority', () => {
+  beforeAll(() => {
+    new ConfigService(path.resolve(__dirname, '../src/rules'));
+  });
 
-const KAFKA_BROKER = process.env.KAFKA_BROKERS ?? "localhost:9092";
-const INPUT_TOPIC = "test.cluster_reports";
-const OUTPUT_TOPIC = "test.routed_jobs";
-
-// Check if Kafka is reachable before running
-let kafkaAvailable = false;
-
-beforeAll(async () => {
-  try {
-    const kafka = new Kafka({ brokers: [KAFKA_BROKER], clientId: "integration-test", connectionTimeout: 5000 });
-    const admin = kafka.admin();
-    await admin.connect();
-    await admin.disconnect();
-    kafkaAvailable = true;
-  } catch {
-    kafkaAvailable = false;
-  }
-});
-
-const maybeTest = kafkaAvailable ? test : test.skip;
-
-describe("Integration: Kafka consume → route → produce", () => {
-  maybeTest("routes a cluster_report and produces routed_jobs on real Kafka", async () => {
-    const kafka = new Kafka({ brokers: [KAFKA_BROKER], clientId: "integration-test" });
-
-    // Setup: create topics via admin
-    const admin = kafka.admin();
-    await admin.connect();
-    try {
-      await admin.createTopics({
-        topics: [
-          { topic: INPUT_TOPIC, numPartitions: 1 },
-          { topic: OUTPUT_TOPIC, numPartitions: 1 },
-        ],
-        waitForLeaders: true,
-      });
-    } catch {
-      // Topics may already exist
-    }
-    await admin.disconnect();
-
-    // Produce a test message
-    const producer = kafka.producer();
-    await producer.connect();
-
-    const report = {
-      id: "integration-001",
-      category_tags: ["tech_science"],
-      content: "Test content",
-      engagement_metrics: { likes: 100, shares: 50, comments: 25, views: 1000 },
-      created_at: new Date().toISOString(),
+  function makeReport(overrides: Partial<ClusterReport>): ClusterReport {
+    return {
+      id: 'int-1',
+      cluster_label: 'integration cluster',
+      category: 'tech',
+      signal_ids: ['s1', 's2', 's3'],
+      key_insights: ['i'],
+      hooks: { pain_point: 'p', agitate: 'a', solution: 's', hot_take: 'h' },
+      data_points: [],
+      platform_flags: { instagram: true, linkedin: true, youtube: true, x: true, tiktok: true, douyin: true, rednote: true },
+      speculative_edges: [],
+      graph_svg_url: null,
+      generated_at: '2026-07-11T00:00:00.000Z',
+      engagement: { views: 5000, likes: 400, shares: 120, comments: 80, signal_count: 3 },
+      ...overrides,
     };
+  }
 
-    await producer.send({
-      topic: INPUT_TOPIC,
-      messages: [{ key: report.id, value: JSON.stringify(report) }],
-    });
-    await producer.disconnect();
-
-    // Route using Router directly
-    const configDir = path.resolve(__dirname, "..", "src", "rules");
-    new ConfigService(configDir);
+  it('routes a tech report through the real YAML rules with engagement priority', async () => {
     const router = new Router();
-    const jobs = await router.route(report);
-
-    // Produce routed jobs
-    const outProducer = kafka.producer();
-    await outProducer.connect();
+    const jobs = await router.route(makeReport({}));
+    const platforms = jobs.map((j) => j.target_platform).sort();
+    // routing.yaml tech row: instagram/linkedin/youtube/x/tiktok true; flags all true
+    expect(platforms).toEqual(['instagram', 'linkedin', 'tiktok', 'x', 'youtube']);
     for (const job of jobs) {
-      await outProducer.send({
-        topic: OUTPUT_TOPIC,
-        messages: [{ key: job.id, value: JSON.stringify(job) }],
-      });
+      // raw = 400*0.2 + 120*0.3 + 80*0.25 + 5000*0.15 = 80+36+20+750 = 886
+      // scaled = round((886/100)*10) = 89 -> clamp 10
+      expect(job.priority).toBe(10);
+      expect(job.ab_variant).toBeNull();
+      expect(['carousel', 'long_video', 'thread', 'short_video', 'note']).toContain(job.content_format);
     }
-    await outProducer.disconnect();
+  });
 
-    // Consume output messages
-    const consumer = kafka.consumer({ groupId: "integration-test-group" });
-    await consumer.connect();
-    await consumer.subscribe({ topic: OUTPUT_TOPIC, fromBeginning: true });
+  it('cn report with cn-only flags routes to cn platforms', async () => {
+    const router = new Router();
+    const jobs = await router.route(
+      makeReport({
+        category: 'cn',
+        platform_flags: { instagram: false, linkedin: false, youtube: false, x: false, tiktok: false, douyin: true, rednote: true },
+      }),
+    );
+    const platforms = jobs.map((j) => j.target_platform).sort();
+    expect(platforms).toEqual(['douyin', 'rednote']);
+  });
 
-    const received: unknown[] = [];
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("Timeout waiting for messages")), 30000);
-      consumer.run({
-        eachMessage: async (payload: EachMessagePayload) => {
-          received.push(JSON.parse(payload.message.value!.toString("utf-8")));
-          clearTimeout(timeout);
-          resolve();
-        },
-      });
-    });
-
-    await consumer.disconnect();
-
-    // Assert
-    expect(received.length).toBeGreaterThan(0);
-    const first = received[0] as { target_platform: string; content_format: string; priority: number };
-    expect(first.target_platform).toBeDefined();
-    expect(first.content_format).toBeDefined();
-    expect(first.priority).toBeGreaterThanOrEqual(1);
-    expect(first.priority).toBeLessThanOrEqual(10);
+  it('report without engagement gets neutral priority 5', async () => {
+    const router = new Router();
+    const base = makeReport({});
+    delete (base as { engagement?: unknown }).engagement;
+    const jobs = await router.route(base);
+    expect(jobs.length).toBeGreaterThan(0);
+    expect(jobs[0]?.priority).toBe(5);
   });
 });

@@ -18,6 +18,6 @@
     "exactOptionalPropertyTypes": true,
     "isolatedModules": true
   },
-  "include": ["src/**/*", "contracts/**/*"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "tests"]
 }
