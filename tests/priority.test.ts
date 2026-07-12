@@ -62,4 +62,40 @@ describe('PriorityScorer', () => {
     const zeroScorer = new ZeroMaxScorer();
     expect(zeroScorer.score(eng({ likes: 50, views: 200 }))).toBe(1);
   });
+
+  it('falls back to 0 when weight keys are missing from config', () => {
+    jest.resetModules();
+    jest.doMock('../src/config', () => ({
+      ConfigService: {
+        instance: {
+          getPriorityConfig: () => ({
+            weights: { likes: 0.5, shares: 0.5 },
+            max_score: 100,
+          }),
+        },
+      },
+    }));
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { PriorityScorer: PartialWeightsScorer } = require('../src/priority');
+    const partialScorer = new PartialWeightsScorer();
+    expect(partialScorer.score(eng({ likes: 10, shares: 10 }))).toBe(1);
+  });
+
+  it('falls back to 0 for all missing weight keys', () => {
+    jest.resetModules();
+    jest.doMock('../src/config', () => ({
+      ConfigService: {
+        instance: {
+          getPriorityConfig: () => ({
+            weights: { views: 0.5 },
+            max_score: 100,
+          }),
+        },
+      },
+    }));
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { PriorityScorer: OnlyViewsScorer } = require('../src/priority');
+    const onlyViewsScorer = new OnlyViewsScorer();
+    expect(onlyViewsScorer.score(eng({ likes: 10, shares: 10 }))).toBe(1);
+  });
 });

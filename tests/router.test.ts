@@ -91,4 +91,31 @@ describe('Router', () => {
       expect(typeof job.created_at).toBe('string');
     }
   });
+
+  it('handles missing default format rules with empty fallback', async () => {
+    jest.resetModules();
+    jest.doMock('../src/config', () => ({
+      ConfigService: {
+        instance: {
+          getRoutingRules: () => ({
+            tech: { instagram: true, linkedin: true, youtube: true, x: true, tiktok: true, douyin: false, rednote: false },
+          }),
+          getFormatRules: () => ({}),
+          getPriorityConfig: () => ({
+            weights: { likes: 0.2, shares: 0.3, comments: 0.25, views: 0.15 },
+            max_score: 100,
+          }),
+        },
+      },
+    }));
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { Router: NoDefaultRouter } = require('../src/router');
+    const noDefaultRouter = new NoDefaultRouter();
+    const report = makeReport({});
+    const jobs = await noDefaultRouter.route(report);
+    expect(jobs.length).toBeGreaterThan(0);
+    for (const job of jobs) {
+      expect(job.content_format).toBeUndefined();
+    }
+  });
 });
