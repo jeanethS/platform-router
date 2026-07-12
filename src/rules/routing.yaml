@@ -72,3 +72,5 @@ meta:
   tiktok: false
   douyin: false
   rednote: false
+  whatsapp: false
+  whatsapp_status: false

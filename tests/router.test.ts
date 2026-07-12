@@ -46,13 +46,25 @@ jest.mock('../src/config', () => ({
           whatsapp: true,
           whatsapp_status: true,
         },
+        culture: {
+          instagram: true,
+          linkedin: false,
+          youtube: false,
+          x: false,
+          tiktok: true,
+          douyin: true,
+          rednote: true,
+          whatsapp: true,
+          whatsapp_status: false,
+        },
         unknown_category: undefined as unknown as Record<string, boolean>,
-        tech: { instagram: true, linkedin: true, youtube: true, x: true, tiktok: true, douyin: false, rednote: false },
-        cn: { instagram: false, linkedin: false, youtube: true, x: false, tiktok: true, douyin: true, rednote: true },
+        tech: { instagram: true, linkedin: true, youtube: true, x: true, tiktok: true, douyin: false, rednote: false, whatsapp: false, whatsapp_status: false },
+        cn: { instagram: false, linkedin: false, youtube: true, x: false, tiktok: true, douyin: true, rednote: true, whatsapp: false, whatsapp_status: false },
       }),
       getFormatRules: () => ({
-        default: { instagram: 'carousel', linkedin: 'carousel', youtube: 'long_video', x: 'thread', tiktok: 'short_video', douyin: 'short_video', rednote: 'note' },
+        default: { instagram: 'carousel', linkedin: 'carousel', youtube: 'long_video', x: 'thread', tiktok: 'short_video', douyin: 'short_video', rednote: 'note', whatsapp: 'audio_note', whatsapp_status: 'short_video' },
         tech: { youtube: 'short_video' },
+        local_services: { whatsapp: 'broadcast', whatsapp_status: 'voice_memo' },
       }),
       getPriorityConfig: () => ({
         weights: { likes: 0.2, shares: 0.3, comments: 0.25, views: 0.15 },
@@ -74,7 +86,7 @@ function makeReport(overrides: Partial<ClusterReport>): ClusterReport {
     key_insights: ['i1'],
     hooks: { pain_point: 'p', agitate: 'a', solution: 's', hot_take: 'h' },
     data_points: [],
-    platform_flags: { instagram: true, linkedin: true, youtube: true, x: true, tiktok: true, douyin: true, rednote: true },
+    platform_flags: { instagram: true, linkedin: true, youtube: true, x: true, tiktok: true, douyin: true, rednote: true, whatsapp: false, whatsapp_status: false },
     speculative_edges: [],
     graph_svg_url: null,
     generated_at: '2026-07-11T00:00:00.000Z',
@@ -95,7 +107,7 @@ describe('Router', () => {
   it('platform_flags veto rule-allowed platforms', async () => {
     const jobs = await router.route(
       makeReport({
-        platform_flags: { instagram: false, linkedin: true, youtube: false, x: true, tiktok: false, douyin: true, rednote: true },
+        platform_flags: { instagram: false, linkedin: true, youtube: false, x: true, tiktok: false, douyin: true, rednote: true, whatsapp: false, whatsapp_status: false },
       }),
     );
     const platforms = jobs.map((j) => j.target_platform).sort();
@@ -110,7 +122,7 @@ describe('Router', () => {
   it('returns empty array when flags veto everything', async () => {
     const jobs = await router.route(
       makeReport({
-        platform_flags: { instagram: false, linkedin: false, youtube: false, x: false, tiktok: false, douyin: false, rednote: false },
+        platform_flags: { instagram: false, linkedin: false, youtube: false, x: false, tiktok: false, douyin: false, rednote: false, whatsapp: false, whatsapp_status: false },
       }),
     );
     expect(jobs).toEqual([]);
@@ -143,7 +155,7 @@ describe('Router', () => {
       ConfigService: {
         instance: {
           getRoutingRules: () => ({
-            tech: { instagram: true, linkedin: true, youtube: true, x: true, tiktok: true, douyin: false, rednote: false },
+            tech: { instagram: true, linkedin: true, youtube: true, x: true, tiktok: true, douyin: false, rednote: false, whatsapp: false, whatsapp_status: false },
           }),
           getFormatRules: () => ({}),
           getPriorityConfig: () => ({
@@ -164,39 +176,54 @@ describe('Router', () => {
     }
   });
 
-  it("routes to whatsapp for culture_aesthetics cluster", async () => {
-    const report = baseReport({ category_tags: ["culture_aesthetics"] });
+  it("routes to whatsapp for culture cluster when flag true", async () => {
+    const report = makeReport({
+      category: "culture",
+      platform_flags: { instagram: true, linkedin: false, youtube: false, x: false, tiktok: true, douyin: true, rednote: true, whatsapp: true, whatsapp_status: false },
+    });
     const jobs = await router.route(report);
     const platforms = jobs.map((j) => j.target_platform);
     expect(platforms).toContain("whatsapp");
     expect(platforms).not.toContain("whatsapp_status");
   });
 
-  it("routes to whatsapp + whatsapp_status for local_services cluster", async () => {
-    const report = baseReport({ category_tags: ["local_services"] });
-    const jobs = await router.route(report);
-    const platforms = jobs.map((j) => j.target_platform);
-    expect(platforms).toContain("whatsapp");
-    expect(platforms).toContain("whatsapp_status");
-  });
-
-  it("does NOT route to whatsapp for tech_science (B2B cluster)", async () => {
-    const report = baseReport({ category_tags: ["tech_science"] });
+  it("does NOT route to whatsapp for tech cluster", async () => {
+    const report = makeReport({
+      category: "tech",
+      platform_flags: { instagram: true, linkedin: true, youtube: true, x: true, tiktok: true, douyin: false, rednote: false, whatsapp: false, whatsapp_status: false },
+    });
     const jobs = await router.route(report);
     const platforms = jobs.map((j) => j.target_platform);
     expect(platforms).not.toContain("whatsapp");
     expect(platforms).not.toContain("whatsapp_status");
   });
 
-  it("uses audio_note format for whatsapp by default", async () => {
-    const report = baseReport({ category_tags: ["culture_aesthetics"] });
+  it("routes to whatsapp + whatsapp_status for local_services cluster", async () => {
+    const report = makeReport({
+      category: "local_services",
+      platform_flags: { instagram: true, linkedin: false, youtube: true, x: false, tiktok: true, douyin: false, rednote: false, whatsapp: true, whatsapp_status: true },
+    });
+    const jobs = await router.route(report);
+    const platforms = jobs.map((j) => j.target_platform);
+    expect(platforms).toContain("whatsapp");
+    expect(platforms).toContain("whatsapp_status");
+  });
+
+  it("uses audio_note default format for whatsapp", async () => {
+    const report = makeReport({
+      category: "culture",
+      platform_flags: { instagram: true, linkedin: false, youtube: false, x: false, tiktok: true, douyin: true, rednote: true, whatsapp: true, whatsapp_status: false },
+    });
     const jobs = await router.route(report);
     const whatsappJob = jobs.find((j) => j.target_platform === "whatsapp");
     expect(whatsappJob!.content_format).toBe("audio_note");
   });
 
-  it("uses broadcast format override for local_services whatsapp", async () => {
-    const report = baseReport({ category_tags: ["local_services"] });
+  it("uses broadcast override for local_services whatsapp", async () => {
+    const report = makeReport({
+      category: "local_services",
+      platform_flags: { instagram: true, linkedin: false, youtube: true, x: false, tiktok: true, douyin: false, rednote: false, whatsapp: true, whatsapp_status: true },
+    });
     const jobs = await router.route(report);
     const whatsappJob = jobs.find((j) => j.target_platform === "whatsapp");
     expect(whatsappJob!.content_format).toBe("broadcast");

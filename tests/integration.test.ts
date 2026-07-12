@@ -23,7 +23,7 @@ describe('integration: real rules -> router -> priority', () => {
       key_insights: ['i'],
       hooks: { pain_point: 'p', agitate: 'a', solution: 's', hot_take: 'h' },
       data_points: [],
-      platform_flags: { instagram: true, linkedin: true, youtube: true, x: true, tiktok: true, douyin: true, rednote: true },
+      platform_flags: { instagram: true, linkedin: true, youtube: true, x: true, tiktok: true, douyin: true, rednote: true, whatsapp: false, whatsapp_status: false },
       speculative_edges: [],
       graph_svg_url: null,
       generated_at: '2026-07-11T00:00:00.000Z',
@@ -52,7 +52,7 @@ describe('integration: real rules -> router -> priority', () => {
     const jobs = await router.route(
       makeReport({
         category: 'cn',
-        platform_flags: { instagram: false, linkedin: false, youtube: false, x: false, tiktok: false, douyin: true, rednote: true },
+        platform_flags: { instagram: false, linkedin: false, youtube: false, x: false, tiktok: false, douyin: true, rednote: true, whatsapp: false, whatsapp_status: false },
       }),
     );
     const platforms = jobs.map((j) => j.target_platform).sort();
