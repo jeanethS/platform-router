@@ -31,3 +31,6 @@ biz:
 local_services:
   whatsapp: broadcast
   whatsapp_status: voice_memo
+
+meta:
+  linkedin: carousel_canva

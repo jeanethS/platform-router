@@ -63,7 +63,7 @@ jest.mock('../src/config', () => ({
       }),
       getFormatRules: () => ({
         default: { instagram: 'carousel', linkedin: 'carousel', youtube: 'long_video', x: 'thread', tiktok: 'short_video', douyin: 'short_video', rednote: 'note', whatsapp: 'audio_note', whatsapp_status: 'short_video' },
-        tech: { youtube: 'short_video' },
+        tech: { youtube: 'short_video', linkedin: 'carousel_canva' },
         local_services: { whatsapp: 'broadcast', whatsapp_status: 'voice_memo' },
       }),
       getPriorityConfig: () => ({
@@ -134,6 +134,12 @@ describe('Router', () => {
     expect(byPlatform['youtube']).toBe('short_video'); // tech override
     expect(byPlatform['instagram']).toBe('carousel'); // default
     expect(byPlatform['x']).toBe('thread'); // default
+  });
+
+  it('applies carousel_canva format override for tech/linkedin', async () => {
+    const jobs = await router.route(makeReport({}));
+    const byPlatform = Object.fromEntries(jobs.map((j) => [j.target_platform, j.content_format]));
+    expect(byPlatform['linkedin']).toBe('carousel_canva');
   });
 
   it('sets id, ab_variant, priority, and embeds the report', async () => {
