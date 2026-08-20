@@ -4,25 +4,65 @@ Fecha: 2026-08-20
 
 ## Contexto
 
-Pipeline actual:
+Pipeline completo (actualizado):
 
 ```
-raw_signal → semantic-graph → cluster_report → platform-router
-  → {Carousel Studio | shortform-engine | youtubeGen}
-  → content_artifact → Telegram review → publish → analytics
+                    ┌────────────────┐
+                    │ Signal Sources │
+                    └───────┬────────┘
+                            ↓
+                  signal-harvester
+                            ↓
+                    semantic-graph
+                            ↓
+                    content-planner
+                            ↓
+                   platform-router
+                            ↓
+         ┌──────────────────┼──────────────────┐
+         ↓                  ↓                  ↓
+ Carousel Studio       Shorts Studio       Text Studio
+         ↓                  ↓                  ↓
+       PNGs          OpenShorts rough       captions /
+                           cut              LinkedIn/X
+                            ↓
+                        CapCut MCP
+                            ↓
+                       final video
+         └──────────────────┼──────────────────┘
+                            ↓
+                      review queue
+                      ↙     ↓     ↘
+                   auto   friend   Jeaneth
+                      \     |      /
+                            ↓
+                         publish
+                            ↓
+                    analytics-ingestor
+                            ↓
+                   semantic-graph (feedback loop,
+                   junto con nuevo raw_signal)
 ```
 
-Se agrega Canva MCP como ruta alternativa para generar carousels, sin
-reemplazar Carousel Studio. La ruta se selecciona según el tipo de
-contenido/template que indica `cluster_report`.
+Notas sobre el diagrama respecto a la versión anterior de este spec:
+- `cluster_report` pasa a ser producido por `content-planner` (mismo rol, nuevo nombre — este spec sigue refiriéndose al campo `template_engine` como parte de ese output).
+- `shortform-engine`/`youtubeGen` se consolidan en `Shorts Studio` (rough cut) → `CapCut MCP` (edición/final). Fuera de alcance de este spec.
+- `Text Studio` es un branch nuevo (captions/LinkedIn/X), fuera de alcance de este spec.
+- `Telegram review` se generaliza a `review queue` con tres tiers (`auto`, `friend`, `Jeaneth`). Este spec sigue asumiendo Telegram como canal de implementación del tier que revisa carousels Canva (ver Componente 4); a qué tier cae un `canva_design` (probablemente `Jeaneth`, dado que requiere edición manual) queda a definir por el diseño de `review queue`, no por este spec.
+- `analytics-ingestor` retroalimenta `semantic-graph`, cerrando el loop — no afecta el flujo de este spec.
+
+Se agrega Canva MCP como ruta alternativa dentro del branch de
+Carousel Studio, sin reemplazarlo. La ruta se selecciona según el tipo
+de contenido/template que indica el output de `content-planner`
+(`cluster_report`).
 
 ## Objetivo
 
 Permitir que ciertos carousels se generen usando templates de marca en
 Canva (via Canva Connect API a través de un servidor MCP), en vez del
 render custom de Carousel Studio, manteniendo el resto del pipeline
-(review en Telegram, publish, analytics) funcionando igual para ambos
-paths.
+(review queue, publish, analytics-ingestor) funcionando igual para
+ambos paths.
 
 ## Arquitectura
 
