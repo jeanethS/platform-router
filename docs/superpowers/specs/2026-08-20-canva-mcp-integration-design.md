@@ -4,86 +4,96 @@ Fecha: 2026-08-20
 
 ## Contexto
 
-Pipeline completo (actualizado):
+Diagrama canónico del pipeline (estado real de implementación, con
+status por componente):
 
 ```
-                    ┌────────────────┐
-                    │ Signal Sources │
-                    └───────┬────────┘
+live=implementado · partial=parcial · planned=por hacer · human=sesión interactiva humana
+
+SH[Signal Harvester → raw_signal]:live
+      ↓ Redis stream
+SG[Semantic Graph → cluster_report]:partial
+      ↓
+PR[Platform Router → routed_job]:partial
+      ↓
+ ┌──────────────┼──────────────┬───────────────────┐
+ ↓              ↓              ↓                    ↓
+CS[Carousel   SF[Shortform   YG[YouTubeGen    CV[Canva MCP
+   Studio]      Engine        long-form]:      interactive
+   :partial     Veo/HyperF]:  partial          human session]:
+                partial                          human
+ └──────────────┴──────────────┴───────────────────┘
                             ↓
-                  signal-harvester
+                  CA[content_artifact]:planned
                             ↓
-                    semantic-graph
+                  PQ[Publish Queue]:live
                             ↓
-                    content-planner
+        TG[Telegram HITL — review → approve → schedule]:live
                             ↓
-                   platform-router
+              TAI[Taisly — validate → publish]:partial
                             ↓
-         ┌──────────────────┼──────────────────┐
-         ↓                  ↓                  ↓
- Carousel Studio       Shorts Studio       Text Studio
-         ↓                  ↓                  ↓
-       PNGs          OpenShorts rough       captions /
-                           cut              LinkedIn/X
+   NET[Instagram · LinkedIn · YouTube · X · TikTok ·
+        Douyin · RedNote]:partial
                             ↓
-                        CapCut MCP
-                            ↓
-                       final video
-         └──────────────────┼──────────────────┘
-                            ↓
-                      review queue
-                      ↙     ↓     ↘
-                   auto   friend   Jeaneth
-                      \     |      /
-                            ↓
-                         publish
-                            ↓
-                    analytics-ingestor
-                            ↓
-                   semantic-graph (feedback loop,
-                   junto con nuevo raw_signal)
+        AN[Analytics → Platform Router]:planned  (loop back a PR)
+
+Adicional (fuera de alcance de este spec, solo contexto):
+- SH -. selección editorial temporal .-> TG
+- TG -. segunda aprobación .-> GQ[brand-os:generation]:live
+- GQ -. workers por conectar .-> CS, SF, YG
+- K[Katsi/asset-bridge, material grabado]:planned -. assets+locators .-> SF, CS
 ```
 
-Notas sobre el diagrama respecto a la versión anterior de este spec:
-- `cluster_report` pasa a ser producido por `content-planner` (mismo rol, nuevo nombre — este spec sigue refiriéndose al campo `template_engine` como parte de ese output).
-- `shortform-engine`/`youtubeGen` se consolidan en `Shorts Studio` (rough cut) → `CapCut MCP` (edición/final). Fuera de alcance de este spec.
-- `Text Studio` es un branch nuevo (captions/LinkedIn/X), fuera de alcance de este spec.
-- `Telegram review` se generaliza a `review queue` con tres tiers (`auto`, `friend`, `Jeaneth`). Este spec sigue asumiendo Telegram como canal de implementación del tier que revisa carousels Canva (ver Componente 4); a qué tier cae un `canva_design` (probablemente `Jeaneth`, dado que requiere edición manual) queda a definir por el diseño de `review queue`, no por este spec.
-- `analytics-ingestor` retroalimenta `semantic-graph`, cerrando el loop — no afecta el flujo de este spec.
+Este diagrama reemplaza la versión mermaid pasada en el turno
+anterior de este spec (que usaba nombres aspiracionales
+`content-planner`/`Text Studio`/`review queue` de 3 tiers) — esos
+nombres no reflejan el estado real; se descartan a favor de los
+nombres y estados de arriba.
+
+Punto clave para este spec: `CV` (Canva MCP) está marcado `human` —
+la sesión interactiva del humano ocurre **dentro** del paso CV, antes
+de que exista `content_artifact`. El `Telegram HITL` de más abajo en
+el diagrama es un segundo gate genérico (review → approve → schedule)
+que aplica a **cualquier** `content_artifact` ya terminado, sin
+importar el path que lo generó — no hay que confundirlo con el canal
+usado para la sesión interactiva de Canva (ver Componente 4).
 
 Se agrega Canva MCP como ruta alternativa dentro del branch de
 Carousel Studio, sin reemplazarlo. La ruta se selecciona según el tipo
-de contenido/template que indica el output de `content-planner`
-(`cluster_report`).
+de contenido/template que indica `cluster_report` (output de
+Semantic Graph, consumido como `routed_job` por Platform Router).
 
 ## Objetivo
 
 Permitir que ciertos carousels se generen usando templates de marca en
 Canva (via Canva Connect API a través de un servidor MCP), en vez del
-render custom de Carousel Studio, manteniendo el resto del pipeline
-(review queue, publish, analytics-ingestor) funcionando igual para
-ambos paths.
+render custom de Carousel Studio. Una vez que Canva produce un
+`content_artifact`, el resto del pipeline (Publish Queue → Telegram
+HITL → Taisly → redes → Analytics) funciona igual que para cualquier
+otro path, sin cambios.
 
 ## Arquitectura
 
 ```
 cluster_report (campo nuevo: template_engine: "canva" | "custom")
       ↓
-platform-router
+platform-router (routed_job)
       ↓ (si template_engine == "canva")
-Canva Connector (nuevo servicio, wraps Canva MCP)
+Canva Connector (nuevo servicio, wraps Canva MCP)  ── nodo CV, status "human"
       ↓
-content_artifact { type: "canva_design", edit_url, design_id }
-      ↓
-Telegram review (reviewer abre edit_url, edita directo en Canva)
-      ↓ /approve (con confirmación explícita "¿ya terminaste de editar?")
+[sesión interactiva] canal Telegram-Canva (reviewer abre edit_url, edita directo en Canva)
+      ↓ /approve (confirmación explícita "¿ya terminaste de editar?")
 Canva Connector.export_design(design_id) → imágenes finales
       ↓
-publish → analytics
+content_artifact { type: "canva_design" }   ── nodo CA
+      ↓
+Publish Queue → Telegram HITL (review → approve → schedule) → Taisly (validate → publish) → redes → Analytics
 ```
 
-La ruta actual (Carousel Studio → `content_artifact { type:
-"rendered_media" }`) no cambia.
+Todo lo que sigue de `content_artifact` en adelante es el pipeline
+genérico existente, sin cambios para este path. La ruta actual
+(Carousel Studio → `content_artifact { type: "rendered_media" }`)
+tampoco cambia.
 
 ## Componentes
 
@@ -109,12 +119,16 @@ Lee `cluster_report.template_engine`. Si es `"canva"`, rutea a Canva
 Connector en vez de Carousel Studio. Default (`"custom"` o ausente) es
 el comportamiento actual.
 
-### 4. Telegram review bot
+### 4. Canal Telegram-Canva (sesión interactiva, distinto del Telegram HITL genérico)
 
-Ramifica según `content_artifact.type`:
+Este es el canal usado **dentro** del nodo CV para la edición humana,
+anterior a que exista `content_artifact`. No es el mismo componente
+que `Telegram HITL` del pipeline genérico (ese corre después, sobre
+cualquier `content_artifact` ya terminado, y no cambia con este spec).
 
-- `"rendered_media"`: comportamiento actual (preview de imagen, aprobar/rechazar).
-- `"canva_design"`: manda `edit_url` (Canva no expone webhook fiable de "diseño listo", así que no hay preview automático). Comando `/approve` pregunta confirmación explícita ("¿ya terminaste de editar en Canva? sí/no") antes de llamar `export_design`. Solo tras el export exitoso el artifact pasa a publish.
+- Manda `edit_url` al reviewer (Canva no expone webhook fiable de "diseño listo", así que no hay preview automático).
+- Comando `/approve` pregunta confirmación explícita ("¿ya terminaste de editar en Canva? sí/no") antes de llamar `export_design`.
+- Solo tras el export exitoso se emite el `content_artifact` y entra a Publish Queue → Telegram HITL como cualquier otro artifact.
 
 ### 5. Setup externo (no es código de pipeline)
 
@@ -125,9 +139,10 @@ Ramifica según `content_artifact.type`:
 
 ## Manejo de errores
 
-- `create_from_template` falla (template inválido, auth expirado): platform-router cae back a error visible en Telegram review (no fallback silencioso a Carousel Studio — el contenido no es intercambiable 1:1).
+- `create_from_template` falla (template inválido, auth expirado): platform-router cae back a error visible en el canal Telegram-Canva (no fallback silencioso a Carousel Studio — el contenido no es intercambiable 1:1).
 - `export_design` falla tras `/approve`: bot notifica error al reviewer, artifact queda en estado `pending_export`, reviewer puede reintentar `/approve`.
 - Reviewer aprueba sin terminar de editar: mitigado solo con la confirmación explícita en `/approve` (sin lock de estado real, Canva MCP no lo expone).
+- Taisly rechaza el `content_artifact` en `validate` (paso genérico, no específico de Canva): mismo comportamiento que para cualquier otro path, fuera de alcance de este spec.
 
 ## Riesgos / límites conocidos
 
@@ -140,3 +155,6 @@ Ramifica según `content_artifact.type`:
 - Reemplazo de Carousel Studio.
 - Polling automático de estado del diseño en Canva.
 - Multi-brand template mapping (un template inicial es suficiente para validar el flujo).
+- Segunda aprobación / loop `GQ (brand-os:generation)` y wiring de workers hacia CS/SF/YG.
+- Integración `Katsi/asset-bridge` (assets grabados) hacia Carousel Studio o Shortform Engine.
+- Cambios a Taisly, Publish Queue, Telegram HITL genérico o Analytics — se consumen tal cual existen.
