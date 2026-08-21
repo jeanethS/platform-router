@@ -1,8 +1,19 @@
-# analytics-ingestor — design spec
+# analytics-ingestor (MEASURE & RECYCLE) — design spec
 
 Fecha: 2026-08-20
 Estado: diseñado, listo para implementation plan (`superpowers:writing-plans`).
 Precede a: `2026-08-20-measure-recycle-analytics-ingestor.md` (brainstorming source, preguntas abiertas resueltas acá).
+
+**REVISIÓN 2026-08-20 (misma sesión):** el diseño original de este doc
+proponía un repo standalone `analytics-ingestor/`. Al arrancar
+`writing-plans` se descubrió que `publish-queue` ya tiene un módulo de
+analytics — `AnalyticsCollectorService`, `PerformanceScorerService`,
+adapters `pullAnalytics` — pero está **muerto y mockeado**:
+`scheduleAnalyticsCollection` nunca se llama desde el flujo de publish real,
+y `InstagramAdapter`/`LinkedInAdapter`.`pullAnalytics` devuelven
+`Math.random()`. Pivot: completar ese módulo in-place en vez de construir
+un repo nuevo. Ver sección "Arquitectura" (revisada) abajo — el resto del
+documento refleja la revisión, no el diseño original.
 
 ## Contexto
 
@@ -11,140 +22,145 @@ Tercer gap de BrandOSS vs `social-media-skills`: cierra el loop
 (`brand-config`) y CREATE (`brand-os-generation`) ya en producción; este es
 MEASURE & RECYCLE.
 
-Hallazgo clave de esta sesión: `publish-queue` ya persiste
-`ContentArtifact.externalId` en su Postgres tras un publish real
-(`publish-queue.service.ts:183`, vía `PublishResult` del adapter de Taisly).
-Ese es el punto de entrada natural para saber qué se publicó y con qué ID
-nativo — no hace falta un topic nuevo solo para el discovery.
+Hallazgos clave de esta sesión:
 
-## Decisiones (resueltas en brainstorming)
+- `publish-queue` ya persiste `ContentArtifact.externalId` en su Postgres
+  tras un publish real (`publish-queue.service.ts:183`, vía `PublishResult`
+  del adapter activo). Punto de entrada natural para saber qué se publicó y
+  con qué ID nativo.
+- `publish-queue/src/analytics/` ya tiene `AnalyticsCollectorService`
+  (BullMQ delay-job de 6h post-publish, config
+  `ANALYTICS_COLLECTION_DELAY_HOURS`) y `PerformanceScorerService`
+  (score ponderado por plataforma + **percentil vs historial de 30 días,
+  ya calculado** en `getHistoricalComparison`). Ninguno de los dos está
+  conectado al flujo real — `scheduleAnalyticsCollection` no tiene
+  callers, y `InstagramAdapter`/`LinkedInAdapter.pullAnalytics` son mocks
+  con `Math.random()`.
+- `platform-router` es stateless — no tiene DB. `PriorityScorer` calcula
+  prioridad solo desde el `engagement` efímero de cada `ClusterReport`
+  recibido por BullMQ. La dimensión estable a través del tiempo es
+  `ClusterReport.category` (7 valores fijos, usada ya como key de
+  `routing_rules`), no `cluster_id` (que es efímero, re-generado en cada
+  corrida de clustering de `semantic-graph`).
+- `ContentArtifact` (Prisma, `publish-queue`) no tiene ninguna columna que
+  lo enlace de vuelta a su `cluster_report`/`category` de origen. Tampoco
+  existe ningún `.create()` de `ContentArtifact` en el código presente en
+  este workspace — esa parte del pipeline (CREATE → fila en la DB de
+  publish-queue) es un gap preexistente, fuera de alcance de este plan.
+- Bajo `PUBLISH_DRIVER=taisly` (el driver real), `linkedin` no está en la
+  lista de override de `AdapterFactory`, así que el publish de LinkedIn
+  sigue siendo mock en producción hoy. Gap preexistente, no relacionado a
+  analytics, no se toca en este plan.
+
+## Decisiones
 
 | Pregunta | Decisión |
 |---|---|
-| Repo | Standalone `analytics-ingestor/`, mismo shape que `brand-os-generation`/`canva-connector` (BullMQ Worker, `@brand-os/contracts`, ioredis) |
-| Fuente de datos | Lectura nativa por plataforma (Instagram Graph API, LinkedIn API) — Taisly no expone analytics surface |
-| Scope de plataformas v1 | Instagram + LinkedIn primero (lo que carousel-studio publica hoy); resto de `platform_flags` (tiktok, x, youtube, douyin, rednote, whatsapp) queda como adapter stub con TODO documentado, no implementado en este plan |
-| Discovery de artifacts publicados | Leer `publish-queue` Postgres: `ContentArtifact` con `status='published'` y `externalId` no nulo |
-| Contrato de métricas | Nuevo `AnalyticsSnapshot` en `@brand-os/contracts` (no extender `ContentArtifact.analytics` in place) |
-| Métricas (framework METER) | `saves, shares, watch_time_seconds, engagement_rate_by_reach, follower_growth_rate, ctr, views` |
-| Cierre del loop hacia semantic-graph | Nuevo campo opcional `historical_performance` en `ClusterReport` — separado de `engagement` (que agrega señal de trend signals, no performance de contenido propio) |
-| Cadencia | BullMQ repeat-job (cron-like), mismo patrón que el resto del pipeline — no webhooks |
-| Trigger de recycle | Worker automático — top-N% por `engagement_rate_by_reach` dentro del cluster/categoría del artifact, umbral relativo (no absoluto) |
+| Repo | **Ninguno nuevo** — completar `publish-queue/src/analytics/` in-place (revisado; ver nota arriba) |
+| Fuente de datos | Lectura nativa por plataforma (Instagram Graph API, LinkedIn API) vía los adapters `pullAnalytics` ya existentes en `publish-queue`, con implementación real en vez de mock |
+| Scope de plataformas v1 | Instagram + LinkedIn únicamente. Resto (`youtube`, `x`, `tiktok`, `douyin`, `rednote`) sin tocar |
+| Discovery de artifacts publicados | No hace falta un scan — el collector se dispara inline (`scheduleAnalyticsCollection`) justo después de un publish real exitoso, ya usando `result.externalId` que `publish-queue.service.ts` ya tiene en mano |
+| Contrato de métricas | Extender la interfaz `Analytics` ya existente en `publish-queue/src/adapters/platform.interface.ts` (no un contrato nuevo en `@brand-os/contracts` — los datos viven en el Postgres de `publish-queue`, no se emiten como evento cross-service) |
+| Métricas (framework METER) | `saves, watch_time_seconds, engagement_rate_by_reach, follower_growth_rate, ctr` agregados a `Analytics` (views/likes/comments/shares/engagementRate ya existían) |
+| Cierre del loop hacia semantic-graph/platform-router | **Redis, no un campo en `ClusterReport`.** `historical_performance:<category>` (hash: `avg`, `sample_size`, `updated_at`), escrito por `HistoricalPerformanceService` en `publish-queue`, leído por `PriorityScorer` en `platform-router` vía la misma conexión ioredis que `BusConnector` ya mantiene. Motivo: `ClusterReport` es un mensaje efímero, no una entidad consultable — y `category` es la dimensión estable, no `cluster_id` |
+| Cadencia | El delay-job de 6h que `AnalyticsCollectorService` ya implementaba se conserva tal cual — no hace falta un cron/repeat-job nuevo |
+| Trigger de recycle | Reutiliza `PerformanceScorerService.calculateScore().comparison.percentile` (ya calculado, nunca leído hasta ahora). Percentil ≥ umbral configurable (default 90, top 10%) → encola en topic nuevo `RECYCLE_CANDIDATES` |
+| Columna nueva en `ContentArtifact` | `category: String?` (nullable) — permite el rollup por categoría; queda `null` hasta que se construya la wiring de creación de `ContentArtifact` (gap preexistente, fuera de alcance) |
 
-## Arquitectura
+## Arquitectura (revisada)
 
-Nuevo repo `analytics-ingestor/`, TypeScript, mismo layout que
-`brand-os-generation`:
+Sin repo nuevo. Cambios en tres repos existentes:
 
 ```
-analytics-ingestor/
-  src/
-    worker.ts            # Collector Worker (BullMQ repeat-job)
-    adapters/
-      instagram.ts        # Instagram Graph API client
-      linkedin.ts          # LinkedIn API client
-      types.ts             # AnalyticsAdapter interface (shared shape)
-    aggregate/
-      historicalPerformance.ts  # snapshot → ClusterReport.historical_performance rollup
-    recycle/
-      threshold.ts          # top-N% percentile logic, emits recycle candidate
-    db/
-      publishQueueReader.ts # read-only query against publish-queue Postgres
-  tests/
-    worker.test.ts
-    adapters/instagram.test.ts
-    adapters/linkedin.test.ts
-    recycle/threshold.test.ts
+infra-social/contracts/
+  src/topics.ts              # + RECYCLE_CANDIDATES
+
+publish/publish-queue/
+  prisma/schema.prisma        # + ContentArtifact.category (nullable)
+  src/adapters/
+    platform.interface.ts     # Analytics + campos METER
+    platforms/
+      instagram.adapter.ts    # pullAnalytics real (Instagram Graph API)
+      linkedin.adapter.ts     # pullAnalytics real (LinkedIn API)
+  src/analytics/
+    analytics-collector.service.ts   # wired: score + historical rollup + recycle enqueue
+    historical-performance.service.ts # nuevo — rollup Redis por category
+  src/scheduler/
+    publish-queue.service.ts  # llama scheduleAnalyticsCollection tras publish real
+
+platform-router/
+  src/priority.ts              # lee historical_performance:<category> de Redis
+  src/router.ts                # pasa report.category + await al scorer
+  src/bus.ts                   # comparte su conexión ioredis con Router/PriorityScorer
 ```
-
-## Contratos nuevos (`@brand-os/contracts`, fuente en `infra-social/contracts`)
-
-```ts
-// src/analytics_snapshot.ts
-export interface AnalyticsSnapshot {
-  id: string; // UUID v4
-  artifact_id: string; // ref ContentArtifact.id
-  platform: string;
-  external_id: string; // ref ContentArtifact.externalId
-  saves: number | null;
-  shares: number | null;
-  watch_time_seconds: number | null;
-  engagement_rate_by_reach: number | null;
-  follower_growth_rate: number | null;
-  ctr: number | null;
-  views: number | null;
-  collected_at: string; // ISO-8601
-}
-```
-
-```ts
-// añadido a src/topics.ts
-ANALYTICS_COLLECTED: 'analytics.collected',
-RECYCLE_CANDIDATES: 'recycle.candidates',
-```
-
-```ts
-// añadido a src/cluster_report.ts, campo opcional en ClusterReport
-/**
- * Performance real de contenido publicado que se originó de este cluster,
- * agregado por analytics-ingestor. Distinto de `engagement` (que agrega
- * señal de trend signals de origen, no performance de contenido propio).
- */
-historical_performance?: {
-  avg_engagement_rate_by_reach: number;
-  sample_size: number; // # de artifacts con snapshot agregados
-  updated_at: string; // ISO-8601
-};
-```
-
-Zod schemas correspondientes en `src/schemas/analytics_snapshot.zod.ts`,
-siguiendo el patrón existente de los otros contratos.
 
 ## Flujo de datos
 
-1. **Collector Worker** — BullMQ repeat-job cada 6h. Lee `publish-queue`
-   Postgres (read-only) por `ContentArtifact` con `status='published'` y
-   `externalId` no nulo, filtrado a `platform IN ('instagram', 'linkedin')`.
-2. Por cada artifact, invoca el adapter nativo correspondiente
-   (`adapters/instagram.ts` o `adapters/linkedin.ts`) para pedir las métricas
-   METER de ese post vía su `externalId`.
-3. Escribe un `AnalyticsSnapshot` y publica en `ANALYTICS_COLLECTED`.
-4. **Aggregator** (mismo worker, corre después de cada snapshot) recalcula
-   `historical_performance` del `ClusterReport` correspondiente
-   (`routed_job_id → cluster_id`) y lo persiste vía el mismo mecanismo que
-   `semantic-graph` usa para emitir `ClusterReport` actualizados.
-5. **Recycle Worker** — al recibir cada `ANALYTICS_COLLECTED`, calcula el
-   percentil de `engagement_rate_by_reach` del artifact contra la historia
-   reciente de su cluster/categoría. Si cae en el top-N% (config, default
-   10%), publica un job en `RECYCLE_CANDIDATES` — `content-recycling` skill
-   decide el ángulo de refresh (nunca repost idéntico), no este worker.
+1. `publish-queue.service.ts` publica un artifact. Si el resultado no es un
+   `handoff` (i.e. publicación real, no draft a revisión humana), llama
+   `analyticsCollector.scheduleAnalyticsCollection(artifactId, platform,
+   externalId)` — ya existente, antes sin caller.
+2. Tras el delay configurado (`ANALYTICS_COLLECTION_DELAY_HOURS`, default
+   6h), `AnalyticsCollectorService` invoca
+   `adapterFactory.pullAnalytics(platform, externalId)` — ahora una llamada
+   real a Instagram Graph API o LinkedIn API en vez de `Math.random()`.
+3. El resultado se mergea en `ContentArtifact.analytics` (ya existente) y
+   además:
+   - `PerformanceScorerService.calculateScore()` — ya existente, ahora
+     invocado — calcula `score` y `comparison.percentile`.
+   - `HistoricalPerformanceService.record(artifact.category,
+     analytics.engagementRateByReach)` — nuevo — actualiza el promedio
+     corriente en Redis para esa categoría.
+   - Si `comparison.percentile >= RECYCLE_PERCENTILE_THRESHOLD` (default
+     90), se encola un job en `TOPICS.RECYCLE_CANDIDATES` — el ángulo de
+     refresh lo decide un consumidor futuro (`content-recycling` skill),
+     no este worker.
+4. `platform-router`, al rutear un `ClusterReport`, lee
+   `historical_performance:<report.category>` de Redis y blende ese
+   promedio (ponderado 30%) con el score de engagement del reporte actual
+   (70%) para la prioridad final — solo si `sample_size` de esa categoría
+   alcanza un mínimo (3), si no cae al comportamiento actual sin cambios.
 
 ## Manejo de errores
 
-- Falla o rate-limit de API nativa → log, artifact queda para el próximo
-  tick del cron (sin retry agresivo).
-- Un adapter de plataforma caído no bloquea a los demás — aislados por
-  plataforma.
-- `externalId` faltante o inválido → skip, no fatal.
-- Aggregator sin snapshots suficientes (`sample_size` bajo) → no escribe
-  `historical_performance` (evita que platform-router priorice sobre
-  muestra insuficiente).
+- Falla o rate-limit de API nativa → se propaga como excepción del job
+  BullMQ (ya tenía `attempts: 3` con backoff exponencial en
+  `scheduleAnalyticsCollection`); no se agrega retry adicional.
+- Un adapter de plataforma caído no bloquea al otro — llamadas HTTP
+  aisladas por adapter.
+- `artifact.category` nulo → `HistoricalPerformanceService.record` es no-op
+  (no rompe el flujo de analytics).
+- `comparison` undefined (sin historial de 30 días todavía) → no se encola
+  recycle candidate.
+- `platform-router` sin datos en Redis para una categoría, o
+  `sample_size` insuficiente → usa el score base sin blend, mismo
+  fallback que ya existía para `engagement` ausente.
 
 ## Testing
 
-- Contract test: `AnalyticsSnapshot` zod schema válido/inválido, mismo
-  patrón que los otros `*.zod.ts` tests.
-- Adapter tests: mocks de respuesta HTTP por plataforma (Instagram Graph
-  API, LinkedIn API), casos éxito/rate-limit/malformed.
-- Worker test: `historical_performance` aggregation correcto dado un set
-  de snapshots (mirror de `brand-os-generation/tests/worker.test.ts`).
-- Threshold test: top-N% percentile logic, casos borde (cluster con 1
-  solo sample, empate en el percentil).
+- `instagram.adapter.spec.ts` / `linkedin.adapter.spec.ts` (nuevos): mocks
+  de `fetch`, casos éxito/error por plataforma.
+- `historical-performance.service.spec.ts` (nuevo): running average,
+  no-op con category/metric null.
+- `analytics-collector.service.spec.ts` (nuevo — no existía): scoring +
+  rollup + recycle enqueue, con y sin threshold alcanzado.
+- `publish-queue.service.spec.ts` (extendido): confirma que
+  `scheduleAnalyticsCollection` se llama tras publish real y NO tras un
+  handoff.
+- `priority.test.ts` (extendido): blend de historical performance con
+  distintos `sample_size`, fallback cuando `category` es undefined.
 
 ## Fuera de alcance (este plan)
 
-- Adapters para tiktok, x, youtube, douyin, rednote, whatsapp — stub con
-  TODO, no implementados.
+- Adapters para tiktok, x, youtube, douyin, rednote, whatsapp.
+- Wiring de creación de `ContentArtifact` con `category` poblado (gap
+  preexistente — la columna queda lista pero nadie la llena todavía).
+- Publish real de LinkedIn bajo `PUBLISH_DRIVER=taisly` (sigue mock, gap
+  preexistente no relacionado a analytics).
 - UI/dashboard de analytics — no pedido.
-- A/B testing de hooks (`experimentation-and-ab-testing` skill) — consumidor
-  futuro de estos datos, no parte de este ingestor.
+- A/B testing de hooks (`experimentation-and-ab-testing` skill) —
+  consumidor futuro de `RECYCLE_CANDIDATES`, no parte de este plan.
+- Consumidor real de `RECYCLE_CANDIDATES` (decide el ángulo de refresh) —
+  el topic queda definido y productores lo publican; el consumidor es
+  trabajo futuro, como pasó con `CAROUSEL_JOBS` antes de que
+  `carousel-studio` lo consumiera.
