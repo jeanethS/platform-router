@@ -1,3 +1,4 @@
+import type IORedis from 'ioredis';
 import type {
   ClusterReport,
   RoutedJob,
@@ -21,7 +22,11 @@ const PLATFORMS: TargetPlatform[] = [
 
 export class Router {
   private cfg = ConfigService.instance!;
-  private scorer = new PriorityScorer();
+  private scorer: PriorityScorer;
+
+  constructor(redis?: IORedis) {
+    this.scorer = new PriorityScorer(redis);
+  }
 
   async route(report: ClusterReport): Promise<RoutedJob[]> {
     const rule = this.cfg.getRoutingRules()[report.category];
@@ -42,7 +47,7 @@ export class Router {
       return [];
     }
 
-    const priority = this.scorer.score(report.engagement);
+    const priority = await this.scorer.score(report.engagement, report.category);
     const formats = this.cfg.getFormatRules();
     const defaults = formats['default'] ?? {};
     const overrides = formats[report.category] ?? {};

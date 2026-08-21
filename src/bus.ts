@@ -17,12 +17,13 @@ export class BusConnector {
   private connection: IORedis;
   private outQueue: Queue;
   private worker: Worker | null = null;
-  private router = new Router();
+  private router: Router;
 
   constructor(redisUrl: string = process.env.REDIS_URL ?? DEFAULT_REDIS_URL) {
     // BullMQ requires maxRetriesPerRequest: null on shared connections
     this.connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
     this.outQueue = new Queue(TOPICS.JOBS_ROUTED, { connection: this.connection });
+    this.router = new Router(this.connection);
   }
 
   start(): void {
